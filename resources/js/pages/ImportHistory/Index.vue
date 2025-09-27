@@ -5,7 +5,6 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Clock, CheckCircle, XCircle, Loader } from 'lucide-vue-next';
 
 defineProps<{
@@ -52,7 +51,7 @@ const getStatusVariant = (status: string) => {
 
     <Head title="Import History" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="w-5/8 mx-auto px-2 sm:px-4 lg:px-4 py-4">
+        <div class="w-full mx-auto px-2 sm:px-4 lg:px-4 py-4">
             <div class="mb-6">
                 <h1 class="text-2xl font-bold">Riwayat Import Data Kredit</h1>
                 <p class="text-gray-600">Daftar proses import data kredit yang telah dilakukan</p>
@@ -80,10 +79,10 @@ const getStatusVariant = (status: string) => {
                                 <TableCell>{{ history.tgl_report }}</TableCell>
                                 <TableCell>{{ history.user.name }}</TableCell>
                                 <TableCell>
-                                    <Badge :variant="getStatusVariant(history.status)" class="flex items-center gap-1">
+                                    <span :class="getStatusClasses(history.status)" class="flex items-center gap-1">
                                         <component :is="getStatusIcon(history.status)" class="h-3 w-3" />
                                         {{ history.status }}
-                                    </Badge>
+                                    </span>
                                 </TableCell>
                                 <TableCell>{{ history.total_rows }}</TableCell>
                                 <TableCell>{{ history.success_count }}</TableCell>

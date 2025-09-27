@@ -88,7 +88,7 @@ class KreditImport implements ToModel, WithHeadingRow, WithValidation
                 'kecamatan' => $row['kecamatan'] ?? null,
                 'nasabah_id' => $row['nasabah_id'] ?? null,
                 'flag' => $row['flag'] ?? null,
-                'tgl_report' => isset($row['tgl_report']) ? $this->transformDate($row['tgl_report']) : null,
+                'tgl_report' => $this->tgl_report,
             ];
 
             // Log data yang akan disimpan
