@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 use App\Imports\KreditImport;
+use App\Jobs\ProcessKreditImport;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
@@ -25,48 +26,24 @@ class ImportKreditController extends Controller
         ]);
 
         try {
-            // Log informasi file
-            Log::info('Memulai import file', [
+            // Simpan file ke storage
+            $filePath = $request->file('file')->store('imports');
+
+            // Dispatch job ke queue
+            ProcessKreditImport::dispatch($filePath, $request->tgl_report, auth()->id());
+
+            // Log informasi
+            Log::info('File import telah dikirim ke queue', [
                 'tgl_report' => $request->tgl_report,
-                'nama_file' => $request->file('file')->getClientOriginalName(),
-                'ukuran_file' => $request->file('file')->getSize() . ' bytes',
-                'tipe_file' => $request->file('file')->getMimeType(),
-            ]);
-
-            // Hapus data yang ada untuk tanggal report yang sama
-            $deletedCount = DB::table('import_kredits')->where('tgl_report', $request->tgl_report)->delete();
-            Log::info("Menghapus {$deletedCount} data untuk tanggal report {$request->tgl_report}");
-
-            // Import data
-            $import = new KreditImport($request->tgl_report);
-            Excel::import($import, $request->file('file'));
-
-
-            // Log hasil import
-            Log::info('Import data selesai', [
-                'total_baris' => $import->getRowCount(),
-                'berhasil' => $import->getSuccessCount(),
-                'gagal' => $import->getErrorCount(),
+                'file_path' => $filePath,
+                'user_id' => auth()->id(),
             ]);
 
             // Kembalikan response dengan flash message
-            return redirect()->back()->with('success', "Import selesai! Total: {$import->getRowCount()} baris, Berhasil: {$import->getSuccessCount()}, Gagal: {$import->getErrorCount()}");
-        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-            // Log error validasi
-            Log::error('Error validasi import', [
-                'errors' => $e->failures(),
-            ]);
-
-            // Format error untuk ditampilkan
-            $errorMessages = [];
-            foreach ($e->failures() as $failure) {
-                $errorMessages[] = "Baris {$failure->row()}: " . implode(', ', $failure->errors());
-            }
-
-            return redirect()->back()->with('error', 'Validasi gagal: ' . implode('<br>', $errorMessages));
+            return redirect()->back()->with('success', 'File sedang diproses di background. Anda akan mendapatkan notifikasi setelah proses selesai.');
         } catch (\Exception $e) {
             // Log error umum
-            Log::error('Error import data', [
+            Log::error('Error mengirim file ke queue', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),

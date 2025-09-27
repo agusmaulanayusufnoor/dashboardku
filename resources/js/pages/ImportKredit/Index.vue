@@ -181,7 +181,7 @@ const handleFileChange = (event: Event) => {
                             <div class="flex items-start">
                                 <div
                                     class="bg-blue-100 text-blue-800 rounded-full h-6 w-6 flex items-center justify-center mr-2 flex-shrink-0">
-                                    1</div>
+                                    3</div>
                                 <p class="text-sm">Pastikan file Excel memiliki header yang sesuai dengan nama kolom
                                     di
                                     database</p>
@@ -190,14 +190,14 @@ const handleFileChange = (event: Event) => {
                             <div class="flex items-start">
                                 <div
                                     class="bg-blue-100 text-blue-800 rounded-full h-6 w-6 flex items-center justify-center mr-2 flex-shrink-0">
-                                    2</div>
+                                    4</div>
                                 <p class="text-sm">Format tanggal harus sesuai dengan format Excel (YYYY-MM-DD)</p>
                             </div>
 
                             <div class="flex items-start">
                                 <div
                                     class="bg-blue-100 text-blue-800 rounded-full h-6 w-6 flex items-center justify-center mr-2 flex-shrink-0">
-                                    3</div>
+                                    5</div>
                                 <p class="text-sm">Kolom wajib diisi: no_rekening, nama_nasabah, tgl_realisasi,
                                     jml_pinjaman</p>
                             </div>
@@ -205,7 +205,7 @@ const handleFileChange = (event: Event) => {
                             <div class="flex items-start">
                                 <div
                                     class="bg-blue-100 text-blue-800 rounded-full h-6 w-6 flex items-center justify-center mr-2 flex-shrink-0">
-                                    4</div>
+                                    6</div>
                                 <p class="text-sm">Untuk kolom desimal, gunakan titik (.) sebagai pemisah desimal
                                 </p>
                             </div>
@@ -213,7 +213,7 @@ const handleFileChange = (event: Event) => {
                             <div class="flex items-start">
                                 <div
                                     class="bg-blue-100 text-blue-800 rounded-full h-6 w-6 flex items-center justify-center mr-2 flex-shrink-0">
-                                    5</div>
+                                    7</div>
                                 <p class="text-sm">Pastikan tidak ada data duplikat pada kolom no_rekening</p>
                             </div>
                         </div>

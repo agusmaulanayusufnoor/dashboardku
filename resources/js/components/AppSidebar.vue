@@ -6,7 +6,7 @@ import NavUser from '@/components/NavUser.vue'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { type NavItem } from '@/types'
-import { Copyright, Folder, LayoutGrid,Paperclip, ChevronDown, Landmark, IdCard, Settings as SettingsIcon, Shield, User,KeyRound } from 'lucide-vue-next'
+import { Copyright, Folder, FileClock, LayoutGrid,Paperclip, ChevronDown, Landmark, IdCard, Settings as SettingsIcon, Shield, User,KeyRound } from 'lucide-vue-next'
 import AppLogo from './AppLogo.vue'
 
 const page = usePage()
@@ -23,6 +23,11 @@ const mainNavItems: NavItem[] = [
     title: 'Import Kredit',
     href: '/import-kredit',
     icon: Paperclip,
+  },
+  {
+    title: 'Import History',
+    href: '/import-history',
+    icon: FileClock,
   },
 ]
 
