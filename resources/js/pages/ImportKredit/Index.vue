@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
-import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-vue-next';
+import { Upload, FileText, AlertCircle, CheckCircle, Loader } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
 // Akses objek page Inertia
@@ -14,7 +14,8 @@ const page = usePage<{
     flash: {
         success?: string;
         error?: string;
-    }
+    },
+    import_history_id?: number;
 }>();
 
 const today = new Date();
@@ -22,7 +23,7 @@ const day = String(today.getDate()).padStart(2, '0'); // Hari dengan leading zer
 const month = String(today.getMonth() + 1).padStart(2, '0'); // Bulan dengan leading zero (01-12)
 const year = today.getFullYear(); // Tahun 4 digi
 const form = useForm({
-    tgl_report: `${day}-${month}-${year}`, // Default ke tanggal hari ini
+    tgl_report: `${year}-${month}-${day}`, // Format YYYY-MM-DD
     file: null,
 });
 
@@ -30,6 +31,167 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Import Kredit', href: '/import-kredit' },
 ];
+// Variabel untuk polling
+const polling = ref<any>(null);
+const isProcessing = ref(false);
+const currentImportId = ref<number | null>(null);
+
+// Fungsi untuk mengecek status import
+const checkImportStatus = async (id: number) => {
+    try {
+        const response = await fetch(route('import.status.check', id));
+
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'completed') {
+            // Stop polling
+            if (polling.value) {
+                clearInterval(polling.value);
+                polling.value = null;
+            }
+
+            isProcessing.value = false;
+
+            // Tampilkan notifikasi sukses
+            Swal.fire({
+                icon: 'success',
+                title: 'Import Selesai!',
+                html: `Data berhasil diimport!<br>
+                       Total: ${data.total_rows} baris<br>
+                       Berhasil: ${data.success_count} baris<br>
+                       Gagal: ${data.error_count} baris`,
+                timer: 5000,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end'
+            });
+
+            // Reset form
+            form.reset('file');
+        } else if (data.status === 'failed') {
+            // Stop polling
+            if (polling.value) {
+                clearInterval(polling.value);
+                polling.value = null;
+            }
+
+            isProcessing.value = false;
+
+            // Tampilkan notifikasi error
+            Swal.fire({
+                icon: 'error',
+                title: 'Import Gagal!',
+                html: `Terjadi kesalahan saat import data.<br>
+                       Error: ${data.error_message || 'Unknown error'}`,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#d33',
+            });
+        }
+        // Jika status masih 'processing', lanjutkan polling
+    } catch (error) {
+        console.error('Error checking import status:', error);
+
+        // Stop polling jika terjadi error
+        if (polling.value) {
+            clearInterval(polling.value);
+            polling.value = null;
+        }
+
+        isProcessing.value = false;
+
+        // Tampilkan notifikasi error
+        Swal.fire({
+            icon: 'error',
+            title: 'Error!',
+            text: 'Gagal mengecek status import',
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#d33',
+        });
+    }
+};
+// Fungsi untuk memulai polling
+const startPolling = (id: number) => {
+    currentImportId.value = id;
+    isProcessing.value = true;
+
+    // Set timeout untuk mencegah polling berjalan terus-menerus
+    const timeout = setTimeout(() => {
+        if (polling.value) {
+            clearInterval(polling.value);
+            polling.value = null;
+            isProcessing.value = false;
+
+            Swal.fire({
+                icon: 'warning',
+                title: 'Timeout',
+                text: 'Proses import memakan waktu terlalu lama',
+                confirmButtonText: 'OK',
+            });
+        }
+    }, 300000); // 5 menit timeout
+
+    // Cek status setiap 2 detik
+    polling.value = setInterval(() => {
+        checkImportStatus(id);
+    }, 2000);
+
+    // Simpan timeout ID untuk dibersihkan
+    polling.value.timeoutId = timeout;
+};
+const submitForm = () => {
+    form.post(route('import-kredit.store'), {
+        preserveState: true,
+        onSuccess: (page) => {
+            form.reset('file');
+            // Dapatkan ID import history dari response
+            if (page.props.import_history_id) {
+                startPolling(page.props.import_history_id);
+            }
+        },
+
+        // Tampilkan notifikasi error
+        onError: (errors) => {
+            let errorMessage = 'Terjadi kesalahan saat import data.';
+            if (errors.file) {
+                errorMessage = errors.file;
+            } else if (page.props.flash?.error) {
+                errorMessage = page.props.flash.error;
+            }
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal!',
+                html: errorMessage,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#d33',
+            });
+        },
+    });
+};
+
+
+// Menghandle file input
+const handleFileChange = (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    if (target.files && target.files.length > 0) {
+        form.file = target.files[0];
+    }
+};
+
+
+// Bersihkan polling saat komponen di-unmount
+onUnmounted(() => {
+    if (polling.value) {
+        clearInterval(polling.value);
+        if (polling.value.timeoutId) {
+            clearTimeout(polling.value.timeoutId);
+        }
+    }
+});
 
 // Tampilkan notifikasi saat komponen dimuat
 onMounted(() => {
@@ -56,37 +218,6 @@ onMounted(() => {
     }
 });
 
-const submitForm = () => {
-    form.post(route('import-kredit.store'), {
-        preserveState: true,
-        onSuccess: () => {
-            form.reset('file');
-            // Notifikasi akan ditampilkan di onMounted karena page akan direload
-        },
-        onError: (errors) => {
-            let errorMessage = 'Terjadi kesalahan saat import data.';
-            if (errors.file) {
-                errorMessage = errors.file;
-            }
-
-            Swal.fire({
-                icon: 'error',
-                title: 'Gagal!',
-                html: errorMessage,
-                confirmButtonText: 'OK',
-                confirmButtonColor: '#d33',
-            });
-        },
-    });
-};
-
-// Menghandle file input
-const handleFileChange = (event: Event) => {
-    const target = event.target as HTMLInputElement;
-    if (target.files && target.files.length > 0) {
-        form.file = target.files[0];
-    }
-};
 </script>
 
 <template>
@@ -113,6 +244,13 @@ const handleFileChange = (event: Event) => {
                 {{ page.props.flash.error }}
             </div>
 
+
+            <!-- Indikator Proses -->
+            <div v-if="isProcessing" class="mb-4 p-4 bg-blue-50 text-blue-700 rounded-md flex items-center">
+                <Loader class="h-5 w-5 mr-2 animate-spin" />
+                <span>Sedang memproses import data... Mohon tunggu sebentar.</span>
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Form Upload -->
                 <Card>
@@ -129,7 +267,8 @@ const handleFileChange = (event: Event) => {
                                 <label class="block text-sm font-medium mb-2" for="tgl_report">
                                     Tanggal Laporan
                                 </label>
-                                <Input id="tgl_report" type="date" v-model="form.tgl_report" class="w-full" />
+                                <Input id="tgl_report" type="date" v-model="form.tgl_report" class="w-full"
+                                    :disabled="isProcessing" />
                                 <div v-if="form.errors.tgl_report" class="text-red-500 text-xs italic mt-2">
                                     {{ form.errors.tgl_report }}
                                 </div>
@@ -139,7 +278,7 @@ const handleFileChange = (event: Event) => {
                                     Pilih File Excel
                                 </label>
                                 <Input id="file" type="file" @change="handleFileChange" accept=".xlsx, .xls, .csv"
-                                    class="w-full" />
+                                    class="w-full" :disabled="isProcessing" />
                                 <div v-if="form.errors.file" class="text-red-500 text-xs italic mt-2">
                                     {{ form.errors.file }}
                                 </div>
@@ -149,9 +288,12 @@ const handleFileChange = (event: Event) => {
                             </div>
 
                             <div class="flex justify-end">
-                                <Button type="submit" :disabled="form.processing" class="flex items-center">
-                                    <Upload v-if="!form.processing" class="h-4 w-4 mr-2" />
-                                    <span v-if="form.processing">Memproses...</span>
+                                <Button type="submit" :disabled="form.processing || isProcessing"
+                                    class="flex items-center">
+                                    <Upload v-if="!form.processing && !isProcessing" class="h-4 w-4 mr-2" />
+                                    <Loader v-if="form.processing || isProcessing" class="h-4 w-4 mr-2 animate-spin" />
+                                    <span v-if="form.processing">Mengirim...</span>
+                                    <span v-else-if="isProcessing">Memproses...</span>
                                     <span v-else>Import Data</span>
                                 </Button>
                             </div>

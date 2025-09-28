@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 use App\Imports\KreditImport;
+use App\Models\ImportHistory;
 use App\Jobs\ProcessKreditImport;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -37,12 +38,25 @@ class ImportKreditController extends Controller
             $filePath = $request->file('file')->store('imports');
             Log::info('File disimpan', ['path' => $filePath]);
 
+
+            // Buat import history terlebih dahulu
+            $importHistory = ImportHistory::create([
+                'user_id' => auth()->id(),
+                'tgl_report' => $request->tgl_report,
+                'file_path' => $filePath,
+                'status' => 'pending',
+            ]);
+
             // Dispatch job ke queue
             ProcessKreditImport::dispatch($filePath, $request->tgl_report, auth()->id());
             Log::info('Job dikirim ke queue');
 
-            // Kembalikan response dengan flash message
-            return redirect()->back()->with('success', 'File sedang diproses di background. Anda akan mendapatkan notifikasi setelah proses selesai.');
+
+            // Kembalikan response dengan ID import history
+            return redirect()->back()->with([
+                'success' => 'File sedang diproses di background. Anda akan mendapatkan notifikasi setelah proses selesai.',
+                'import_history_id' => $importHistory->id,
+            ]);
         } catch (\Exception $e) {
             // Log error umum
             Log::error('Error mengirim file ke queue', [

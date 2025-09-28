@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Master\RoleController;
 use App\Http\Controllers\ImportKreditController;
+use App\Http\Controllers\ImportStatusController;
 use App\Http\Controllers\ImportHistoryController;
 use App\Http\Controllers\Master\DivisiController;
 use App\Http\Controllers\Master\KantorController;
@@ -39,6 +40,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/import-kredit', [ImportKreditController::class, 'store'])->name('import-kredit.store');
     Route::get('/import-kredit/template', [ImportKreditController::class, 'downloadTemplate'])->name('import-kredit.template');
     Route::get('/import-history', [ImportHistoryController::class, 'index'])->name('import-history.index');
+    Route::get('/import-status/{id}', [ImportStatusController::class, 'check'])->name('import.status.check');
+    
 });
 
 
