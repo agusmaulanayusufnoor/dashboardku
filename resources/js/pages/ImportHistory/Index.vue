@@ -31,24 +31,23 @@ const getStatusIcon = (status: string) => {
     }
 };
 
-const getStatusVariant = (status: string) => {
+const getStatusClasses = (status: string) => {
     switch (status) {
         case 'pending':
-            return 'secondary';
+            return 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800';
         case 'processing':
-            return 'default';
+            return 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800';
         case 'completed':
-            return 'default';
+            return 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-800';
         case 'failed':
-            return 'destructive';
+            return 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-800';
         default:
-            return 'secondary';
+            return 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800';
     }
 };
 </script>
 
 <template>
-
     <Head title="Import History" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="w-full mx-auto px-2 sm:px-4 lg:px-4 py-4">
@@ -62,7 +61,10 @@ const getStatusVariant = (status: string) => {
                     <CardTitle>Riwayat Import</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Table>
+                    <div v-if="histories.length === 0" class="text-center py-8">
+                        <p class="text-gray-500">Belum ada riwayat import data</p>
+                    </div>
+                    <Table v-else>
                         <TableHead>
                             <TableRow>
                                 <TableHeaderCell>Tanggal Report</TableHeaderCell>

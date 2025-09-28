@@ -17,27 +17,29 @@ class ImportKreditController extends Controller
     {
         return Inertia::render('ImportKredit/Index');
     }
-
     public function store(Request $request)
     {
         $request->validate([
-            'tgl_report' => 'required|date',
+            'tgl_report' => 'required',
             'file' => 'required|mimes:xlsx,xls,csv|max:102400'
         ]);
 
         try {
+            // Log informasi request
+            Log::info('Request diterima', [
+                'tgl_report' => $request->tgl_report,
+                'file_name' => $request->file('file')->getClientOriginalName(),
+                'file_size' => $request->file('file')->getSize(),
+                'user_id' => auth()->id(),
+            ]);
+
             // Simpan file ke storage
             $filePath = $request->file('file')->store('imports');
+            Log::info('File disimpan', ['path' => $filePath]);
 
             // Dispatch job ke queue
             ProcessKreditImport::dispatch($filePath, $request->tgl_report, auth()->id());
-
-            // Log informasi
-            Log::info('File import telah dikirim ke queue', [
-                'tgl_report' => $request->tgl_report,
-                'file_path' => $filePath,
-                'user_id' => auth()->id(),
-            ]);
+            Log::info('Job dikirim ke queue');
 
             // Kembalikan response dengan flash message
             return redirect()->back()->with('success', 'File sedang diproses di background. Anda akan mendapatkan notifikasi setelah proses selesai.');

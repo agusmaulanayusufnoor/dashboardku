@@ -17,8 +17,12 @@ const page = usePage<{
     }
 }>();
 
+const today = new Date();
+const day = String(today.getDate()).padStart(2, '0'); // Hari dengan leading zero (01-31)
+const month = String(today.getMonth() + 1).padStart(2, '0'); // Bulan dengan leading zero (01-12)
+const year = today.getFullYear(); // Tahun 4 digi
 const form = useForm({
-    tgl_report: new Date().toISOString().split('T')[0], // Default ke tanggal hari ini
+    tgl_report: `${day}-${month}-${year}`, // Default ke tanggal hari ini
     file: null,
 });
 

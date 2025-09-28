@@ -15,25 +15,29 @@ class KreditImport implements ToModel, WithHeadingRow, WithValidation
     private $rowCount = 0;
     private $successCount = 0;
     private $errorCount = 0;
+    private $tglReport; // Tambahkan properti ini
 
-    public function __construct()
+    // Perbaiki constructor untuk menerima parameter
+    public function __construct($tglReport)
     {
-        Log::info('Memulai proses import data kredit');
+        $this->tglReport = $tglReport;
+        Log::info('Memulai proses import data kredit', ['tgl_report' => $tglReport]);
     }
 
     public function model(array $row)
     {
         $this->rowCount++;
 
-        // Log setiap baris yang diproses
         Log::info("Memproses baris ke-{$this->rowCount}", [
             'no_rekening' => $row['no_rekening'] ?? null,
             'nama_nasabah' => $row['nama_nasabah'] ?? null,
+            'tgl_realisasi' => $row['tgl_realisasi'] ?? null,
+            'tgl_report' => $this->tglReport,
         ]);
 
         try {
             // Validasi data wajib
-            if (empty($row['no_rekening']) || empty($row['nama_nasabah']) || empty($row['tgl_realisasi']) || empty($row['jml_pinjaman'])) {
+            if (empty($row['no_rekening']) || empty($row['nama_nasabah']) || empty($row['jml_pinjaman'])) {
                 $this->errorCount++;
                 Log::warning("Data tidak lengkap pada baris ke-{$this->rowCount}", [
                     'row_data' => $row,
@@ -41,15 +45,18 @@ class KreditImport implements ToModel, WithHeadingRow, WithValidation
                 return null;
             }
 
+            $tglRealisasi = $this->transformDate($row['tgl_realisasi']);
+            $tglJt = $this->transformDate($row['tgl_jt']);
+
             $data = [
                 'no_rekening' => $row['no_rekening'],
                 'no_alternatif' => $row['no_alternatif'] ?? null,
                 'nama_nasabah' => $row['nama_nasabah'],
                 'alamat' => $row['alamat'] ?? null,
                 'desa' => $row['desa'] ?? null,
-                'tgl_realisasi' => $this->transformDate($row['tgl_realisasi']),
+                'tgl_realisasi' => $tglRealisasi,
                 'jkw' => $row['jkw'] ?? null,
-                'tgl_jt' => $this->transformDate($row['tgl_jt']),
+                'tgl_jt' => $tglJt,
                 'type_kredit' => $row['type_kredit'] ?? null,
                 'suku_bunga' => $row['suku_bunga'] ?? null,
                 'jml_pinjaman' => $row['jml_pinjaman'],
@@ -88,13 +95,17 @@ class KreditImport implements ToModel, WithHeadingRow, WithValidation
                 'kecamatan' => $row['kecamatan'] ?? null,
                 'nasabah_id' => $row['nasabah_id'] ?? null,
                 'flag' => $row['flag'] ?? null,
-                'tgl_report' => $this->tgl_report,
+                'tgl_report' => $this->tglReport,
             ];
 
-            // Log data yang akan disimpan
-            Log::info("Data yang akan disimpan untuk baris ke-{$this->rowCount}", $data);
+            Log::info("Data yang akan disimpan untuk baris ke-{$this->rowCount}", [
+                'no_rekening' => $data['no_rekening'],
+                'nama_nasabah' => $data['nama_nasabah'],
+                'tgl_realisasi' => $data['tgl_realisasi'],
+                'tgl_report' => $data['tgl_report'],
+            ]);
 
-            // Coba insert langsung ke database untuk debugging
+            // Coba insert langsung ke database
             $id = DB::table('import_kredits')->insertGetId($data);
 
             if ($id) {
@@ -105,7 +116,7 @@ class KreditImport implements ToModel, WithHeadingRow, WithValidation
                 Log::error("Gagal menyimpan data baris ke-{$this->rowCount}");
             }
 
-            return null; // Karena sudah diinsert langsung, tidak perlu return model
+            return null;
         } catch (\Exception $e) {
             $this->errorCount++;
             Log::error("Error memproses baris ke-{$this->rowCount}", [
@@ -117,16 +128,17 @@ class KreditImport implements ToModel, WithHeadingRow, WithValidation
             return null;
         }
     }
-
     public function rules(): array
     {
         return [
             'no_rekening' => 'required|string|max:20',
             'nama_nasabah' => 'required|string|max:200',
-            'tgl_realisasi' => 'required',
+            'tgl_realisasi' => 'required|string', // Ubah menjadi nullable
+            'tgl_jt' => 'required|string', // Ubah menjadi nullable
             'jml_pinjaman' => 'required|numeric|min:0',
         ];
     }
+
     public function customValidationMessages()
     {
         return [
@@ -137,13 +149,13 @@ class KreditImport implements ToModel, WithHeadingRow, WithValidation
             'nama_nasabah.string' => 'Nama nasabah harus berupa teks',
             'nama_nasabah.max' => 'Nama nasabah maksimal 200 karakter',
             'tgl_realisasi.required' => 'Kolom tanggal realisasi wajib diisi',
-            'tgl_realisasi.date' => 'Format tanggal realisasi tidak valid',
-            'tgl_jt.date' => 'Format tanggal jatuh tempo tidak valid',
+            'tgl_jt.required' => 'Format tanggal jatuh tempo tidak valid',
             'jml_pinjaman.required' => 'Kolom jumlah pinjaman wajib diisi',
             'jml_pinjaman.numeric' => 'Jumlah pinjaman harus berupa angka',
             'jml_pinjaman.min' => 'Jumlah pinjaman minimal 0',
         ];
     }
+
     private function transformDate($value)
     {
         if (empty($value)) {
@@ -151,9 +163,17 @@ class KreditImport implements ToModel, WithHeadingRow, WithValidation
         }
 
         try {
+            // Log nilai yang diterima
+            Log::info('Transform tanggal', [
+                'value' => $value,
+                'type' => gettype($value),
+            ]);
+
             // Jika value adalah numeric (format Excel)
             if (is_numeric($value)) {
-                return Date::excelToDateTimeObject($value)->format('Y-m-d');
+                $date = Date::excelToDateTimeObject($value)->format('Y-m-d');
+                Log::info('Tanggal dari Excel', ['original' => $value, 'transformed' => $date]);
+                return $date;
             }
 
             // Coba berbagai format tanggal yang mungkin
@@ -168,14 +188,30 @@ class KreditImport implements ToModel, WithHeadingRow, WithValidation
             foreach ($formats as $format) {
                 try {
                     $date = \Carbon\Carbon::createFromFormat($format, $value);
-                    return $date->format('Y-m-d');
+                    $formattedDate = $date->format('Y-m-d');
+                    Log::info('Tanggal dari format', [
+                        'format' => $format,
+                        'original' => $value,
+                        'transformed' => $formattedDate,
+                    ]);
+                    return $formattedDate;
                 } catch (\Exception $e) {
                     // Lanjut ke format berikutnya
+                    Log::info('Format tidak cocok', [
+                        'format' => $format,
+                        'value' => $value,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
             // Jika semua format gagal, coba parse default
-            return \Carbon\Carbon::parse($value)->format('Y-m-d');
+            $date = \Carbon\Carbon::parse($value)->format('Y-m-d');
+            Log::info('Tanggal dari parse default', [
+                'original' => $value,
+                'transformed' => $date,
+            ]);
+            return $date;
         } catch (\Exception $e) {
             Log::error('Error transform tanggal', [
                 'value' => $value,

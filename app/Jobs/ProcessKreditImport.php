@@ -11,6 +11,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ProcessKreditImport implements ShouldQueue
@@ -32,6 +33,18 @@ class ProcessKreditImport implements ShouldQueue
     public function handle(): void
     {
         try {
+            Log::info('Job dimulai', [
+                'file_path' => $this->filePath,
+                'tgl_report' => $this->tglReport,
+                'user_id' => $this->userId,
+            ]);
+
+            // Periksa apakah file ada menggunakan Storage facade dengan disk local
+            if (!Storage::disk('local')->exists($this->filePath)) {
+                throw new \Exception("File tidak ditemukan: {$this->filePath}");
+            }
+            Log::info('File ditemukan', ['path' => $this->filePath]);
+
             // Update status menjadi processing
             $this->importHistory = ImportHistory::create([
                 'user_id' => $this->userId,
@@ -40,19 +53,18 @@ class ProcessKreditImport implements ShouldQueue
                 'status' => 'processing',
             ]);
 
-            Log::info('Memulai proses import data kredit via queue', [
-                'file_path' => $this->filePath,
-                'tgl_report' => $this->tglReport,
-                'user_id' => $this->userId,
-            ]);
+            Log::info('Import history dibuat', ['id' => $this->importHistory->id]);
 
             // Hapus data yang ada untuk tanggal report yang sama
             $deletedCount = DB::table('import_kredits')->where('tgl_report', $this->tglReport)->delete();
-            Log::info("Menghapus {$deletedCount} data untuk tanggal report {$this->tgl_report}");
+            Log::info("Menghapus {$deletedCount} data untuk tanggal report {$this->tglReport}");
 
-            // Import data
+            // Import data - pastikan melewatkan tgl_report
             $import = new KreditImport($this->tglReport);
-            Excel::import($import, $this->filePath);
+            Log::info('KreditImport dibuat', ['tgl_report' => $this->tglReport]);
+            
+            // Gunakan Storage path untuk import dengan disk local
+            Excel::import($import, Storage::disk('local')->path($this->filePath));
             
             // Log hasil import
             Log::info('Import data selesai via queue', [
@@ -69,10 +81,11 @@ class ProcessKreditImport implements ShouldQueue
                 'status' => 'completed',
             ]);
             
+            Log::info('Import history diupdate menjadi completed');
+            
             // Hapus file setelah selesai
-            if (file_exists($this->filePath)) {
-                unlink($this->filePath);
-            }
+            Storage::disk('local')->delete($this->filePath);
+            Log::info('File dihapus', ['path' => $this->filePath]);
             
         } catch (\Exception $e) {
             Log::error('Error import data via queue', [
@@ -88,11 +101,13 @@ class ProcessKreditImport implements ShouldQueue
                     'status' => 'failed',
                     'error_message' => $e->getMessage(),
                 ]);
+                Log::info('Import history diupdate menjadi failed');
             }
             
             // Hapus file jika ada error
-            if (file_exists($this->filePath)) {
-                unlink($this->filePath);
+            if (Storage::disk('local')->exists($this->filePath)) {
+                Storage::disk('local')->delete($this->filePath);
+                Log::info('File dihapus karena error', ['path' => $this->filePath]);
             }
         }
     }
